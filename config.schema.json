@@ -1,0 +1,104 @@
+{
+  "pluginAlias": "SolarEdgePowerFlow",
+  "pluginType": "platform",
+  "singular": false,
+  "headerDisplay": "Expose your SolarEdge site power flow as Matter switches and a battery accessory.",
+  "footerDisplay": "Generate an API key at https://my.solaredge.com → Admin → API Access. The plugin requires a Matter-enabled bridge.",
+  "schema": {
+    "type": "object",
+    "required": ["apiKey", "siteId"],
+    "properties": {
+      "name": {
+        "title": "Platform Name",
+        "type": "string",
+        "default": "SolarEdge"
+      },
+      "apiKey": {
+        "title": "API Key",
+        "type": "string",
+        "required": true
+      },
+      "siteId": {
+        "title": "Site ID",
+        "type": "integer",
+        "required": true,
+        "minimum": 1
+      },
+      "refreshIntervalSeconds": {
+        "title": "Refresh interval (seconds)",
+        "description": "How often to poll the SolarEdge API. 300 calls/day is the API limit; 15 min (900s) is safe.",
+        "type": "integer",
+        "default": 900,
+        "minimum": 30,
+        "maximum": 3600
+      },
+      "showBatterySwitches": {
+        "title": "Show battery charge / discharge switches",
+        "type": "boolean",
+        "default": true
+      },
+      "showBatteryAccessory": {
+        "title": "Show battery accessory (state of charge)",
+        "type": "boolean",
+        "default": true
+      },
+      "accessoryNames": {
+        "title": "Custom accessory names",
+        "type": "object",
+        "properties": {
+          "grid": {
+            "title": "Grid",
+            "type": "string",
+            "default": "SolarEdge Grid"
+          },
+          "load": {
+            "title": "Load",
+            "type": "string",
+            "default": "SolarEdge Load"
+          },
+          "pv": {
+            "title": "PV",
+            "type": "string",
+            "default": "SolarEdge PV"
+          },
+          "batteryCharge": {
+            "title": "Battery Charge",
+            "type": "string",
+            "default": "SolarEdge Battery Charge"
+          },
+          "batteryDischarge": {
+            "title": "Battery Discharge",
+            "type": "string",
+            "default": "SolarEdge Battery Discharge"
+          },
+          "battery": {
+            "title": "Battery (SoC)",
+            "type": "string",
+            "default": "SolarEdge Battery"
+          }
+        }
+      },
+      "_bridge": {
+        "title": "Bridge settings",
+        "type": "object",
+        "description": "Use a dedicated child bridge with Matter enabled.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "default": "SolarEdge Power Flow"
+          },
+          "matter": {
+            "type": "object",
+            "title": "Matter settings",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "default": true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

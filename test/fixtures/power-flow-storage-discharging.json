@@ -1,0 +1,14 @@
+{
+  "siteCurrentPowerFlow": {
+    "updateRefreshRate": 3,
+    "unit": "W",
+    "connections": [
+      { "from": "PV", "to": "Load" },
+      { "from": "STORAGE", "to": "Load" }
+    ],
+    "GRID": { "status": "Active", "currentPower": 0 },
+    "LOAD": { "status": "Active", "currentPower": 1500.0 },
+    "PV": { "status": "Active", "currentPower": 1200.0 },
+    "STORAGE": { "status": "Discharging", "currentPower": 300.0, "chargeLevel": 45, "critical": false }
+  }
+}

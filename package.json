@@ -1,0 +1,43 @@
+{
+  "name": "@gondalez/homebridge-solaredge-power-flow",
+  "displayName": "SolarEdge Power Flow",
+  "version": "0.0.1",
+  "description": "Expose SolarEdge site power-flow data as Matter switches and a battery accessory.",
+  "license": "Apache-2.0",
+  "keywords": [
+    "homebridge-plugin",
+    "homekit",
+    "matter",
+    "solaredge",
+    "solar",
+    "energy",
+    "battery"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "main": "src/index.js",
+  "files": [
+    "src",
+    "config.schema.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "lint": "eslint src test",
+    "test": "vitest run",
+    "prepublishOnly": "npm run lint && npm test"
+  },
+  "peerDependencies": {
+    "homebridge": "^2.2.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^9.0.0",
+    "homebridge": "^2.2.0",
+    "msw": "^2.6.0",
+    "prettier": "^3.0.0",
+    "vitest": "^2.0.0"
+  }
+}
