@@ -131,7 +131,10 @@ describe('SolarEdgeClient - 5xx retries', () => {
     const client = new SolarEdgeClient(silentLogger, 'KEY', {
       backoffMs: [10, 30, 90],
     });
-    await expect(client.getCurrentPowerFlow(12345)).rejects.toBeInstanceOf(ServerError);
+    const promise = client.getCurrentPowerFlow(12345).catch((e) => e);
+    await vi.advanceTimersByTimeAsync(500);
+    const err = await promise;
+    expect(err).toBeInstanceOf(ServerError);
     expect(handler).toHaveBeenCalledTimes(4);
   });
 
@@ -141,7 +144,10 @@ describe('SolarEdgeClient - 5xx retries', () => {
     const client = new SolarEdgeClient(silentLogger, 'KEY', {
       backoffMs: [10, 30, 90],
     });
-    await expect(client.getCurrentPowerFlow(12345)).rejects.toBeInstanceOf(ServerError);
+    const promise = client.getCurrentPowerFlow(12345).catch((e) => e);
+    await vi.advanceTimersByTimeAsync(500);
+    const err = await promise;
+    expect(err).toBeInstanceOf(ServerError);
     expect(handler).toHaveBeenCalledTimes(4);
   });
 
@@ -153,16 +159,21 @@ describe('SolarEdgeClient - 5xx retries', () => {
         return new HttpResponse('', { status: 500 });
       }),
     );
+
     const client = new SolarEdgeClient(silentLogger, 'KEY', {
-      backoffMs: [50, 150, 450],
+      backoffMs: [1000, 3000, 9000],
     });
-    const start = Date.now();
-    await expect(client.getCurrentPowerFlow(12345)).rejects.toBeInstanceOf(ServerError);
-    const elapsed = Date.now() - start;
+    const promise = client.getCurrentPowerFlow(12345).catch((e) => e);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(3000);
+    await vi.advanceTimersByTimeAsync(9000);
+
+    const err = await promise;
+    expect(err).toBeInstanceOf(ServerError);
     expect(timestamps).toHaveLength(4);
-    expect(elapsed).toBeGreaterThanOrEqual(50 + 150);
-    expect(timestamps[1] - timestamps[0]).toBeGreaterThanOrEqual(45);
-    expect(timestamps[2] - timestamps[1]).toBeGreaterThanOrEqual(145);
+    expect(timestamps[1] - timestamps[0]).toBe(1000);
+    expect(timestamps[2] - timestamps[1]).toBe(3000);
   });
 });
 
@@ -178,7 +189,9 @@ describe('SolarEdgeClient - network errors', () => {
     const client = new SolarEdgeClient(silentLogger, 'KEY', {
       backoffMs: [10, 30, 90],
     });
-    const err = await client.getCurrentPowerFlow(12345).catch((e) => e);
+    const promise = client.getCurrentPowerFlow(12345).catch((e) => e);
+    await vi.advanceTimersByTimeAsync(500);
+    const err = await promise;
     expect(err).toBeInstanceOf(NetworkError);
     expect(callCount).toBe(4);
   });
