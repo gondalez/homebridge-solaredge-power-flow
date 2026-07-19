@@ -63,8 +63,6 @@ Restart Homebridge. The plugin will poll the SolarEdge API every 15 minutes and 
 | `apiKey` | string | — | SolarEdge API key (required) |
 | `siteId` | integer | — | SolarEdge site ID (required) |
 | `refreshIntervalSeconds` | integer | `900` | Poll interval. API limit is 300 calls/day |
-| `showBatterySwitches` | boolean | `true` | Show battery charge / discharge switches |
-| `showBatteryAccessory` | boolean | `true` | Show battery state-of-charge accessory |
 | `accessoryNames.grid` | string | `"SolarEdge Grid"` | Custom display name |
 | `accessoryNames.load` | string | `"SolarEdge Load"` | |
 | `accessoryNames.pv` | string | `"SolarEdge PV"` | |

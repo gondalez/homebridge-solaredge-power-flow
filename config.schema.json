@@ -32,16 +32,6 @@
         "minimum": 30,
         "maximum": 3600
       },
-      "showBatterySwitches": {
-        "title": "Show battery charge / discharge switches",
-        "type": "boolean",
-        "default": true
-      },
-      "showBatteryAccessory": {
-        "title": "Show battery accessory (state of charge)",
-        "type": "boolean",
-        "default": true
-      },
       "accessoryNames": {
         "title": "Custom accessory names",
         "type": "object",

@@ -90,12 +90,6 @@ describe('SolarEdgePowerFlowPlatform - accessory creation', () => {
     expect(accessory.clusters.electricalPowerMeasurement.powerMode).toBe(1);
   });
 
-  it('does not create battery switches when showBatterySwitches is false', async () => {
-    platform.config.showBatterySwitches = false;
-    const accessory = await platform.ensureSwitchAccessory('STORAGE', 'charge');
-    expect(accessory).toBeNull();
-  });
-
   it('reuses a registered accessory on a second ensureSwitchAccessory call', async () => {
     const a1 = await platform.ensureSwitchAccessory('GRID', 'flow');
     const a2 = await platform.ensureSwitchAccessory('GRID', 'flow');

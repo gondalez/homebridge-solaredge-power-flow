@@ -96,9 +96,7 @@ export class SolarEdgePowerFlowPlatform {
       await this.applyMetricUpdate(metric, u);
     }
 
-    if (this.config.showBatteryAccessory !== false) {
-      await this.applyBatteryUpdate(resolved.STORAGE);
-    }
+    await this.applyBatteryUpdate(resolved.STORAGE);
   }
 
   async applyMetricUpdate(metric, update) {
@@ -191,10 +189,6 @@ export class SolarEdgePowerFlowPlatform {
   async ensureSwitchAccessory(metric, direction) {
     const existing = this.findRegistered(metric, direction);
     if (existing) return existing;
-    if (metric === 'STORAGE' && this.config.showBatterySwitches === false) return null;
-    if (this.config.showBatteryAccessory === false && (metric === 'GRID' || metric === 'LOAD' || metric === 'PV' || metric === 'STORAGE')) {
-      // allow
-    }
 
     const displayName = pickDisplayName(this.config, metric, direction);
     const initial = this.lastTotals[metric];
