@@ -39,32 +39,32 @@
           "grid": {
             "title": "Grid",
             "type": "string",
-            "default": "SolarEdge Grid"
+            "default": "Grid"
           },
           "load": {
             "title": "Load",
             "type": "string",
-            "default": "SolarEdge Load"
+            "default": "Load"
           },
           "pv": {
             "title": "PV",
             "type": "string",
-            "default": "SolarEdge PV"
+            "default": "PV"
           },
           "batteryCharge": {
             "title": "Battery Charge",
             "type": "string",
-            "default": "SolarEdge Battery Charge"
+            "default": "Battery Charge"
           },
           "batteryDischarge": {
             "title": "Battery Discharge",
             "type": "string",
-            "default": "SolarEdge Battery Discharge"
+            "default": "Battery Discharge"
           },
           "battery": {
             "title": "Battery (SoC)",
             "type": "string",
-            "default": "SolarEdge Battery"
+            "default": "Battery"
           }
         }
       },

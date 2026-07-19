@@ -63,12 +63,12 @@ Restart Homebridge. The plugin will poll the SolarEdge API every 15 minutes and 
 | `apiKey` | string | — | SolarEdge API key (required) |
 | `siteId` | integer | — | SolarEdge site ID (required) |
 | `refreshIntervalSeconds` | integer | `900` | Poll interval. API limit is 300 calls/day |
-| `accessoryNames.grid` | string | `"SolarEdge Grid"` | Custom display name |
-| `accessoryNames.load` | string | `"SolarEdge Load"` | |
-| `accessoryNames.pv` | string | `"SolarEdge PV"` | |
-| `accessoryNames.batteryCharge` | string | `"SolarEdge Battery Charge"` | |
-| `accessoryNames.batteryDischarge` | string | `"SolarEdge Battery Discharge"` | |
-| `accessoryNames.battery` | string | `"SolarEdge Battery"` | |
+| `accessoryNames.grid` | string | `"Grid"` | Custom display name |
+| `accessoryNames.load` | string | `"Load"` | |
+| `accessoryNames.pv` | string | `"PV"` | |
+| `accessoryNames.batteryCharge` | string | `"Battery Charge"` | |
+| `accessoryNames.batteryDischarge` | string | `"Battery Discharge"` | |
+| `accessoryNames.battery` | string | `"Battery"` | |
 | `_bridge.matter.enabled` | boolean | `true` | Required for the plugin to work |
 
 ## Behaviour notes

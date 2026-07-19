@@ -10,12 +10,12 @@ const MAX_REFRESH_INTERVAL_SECONDS = 3600;
 const UNREGISTER_AFTER_MISSING_POLLS = 2;
 
 const DEFAULT_DISPLAY_NAMES = {
-  GRID: 'SolarEdge Grid',
-  LOAD: 'SolarEdge Load',
-  PV: 'SolarEdge PV',
-  BATTERY_CHARGE: 'SolarEdge Battery Charge',
-  BATTERY_DISCHARGE: 'SolarEdge Battery Discharge',
-  BATTERY: 'SolarEdge Battery',
+  GRID: 'Grid',
+  LOAD: 'Load',
+  PV: 'PV',
+  BATTERY_CHARGE: 'Battery Charge',
+  BATTERY_DISCHARGE: 'Battery Discharge',
+  BATTERY: 'Battery',
 };
 
 export class SolarEdgePowerFlowPlatform {
@@ -268,5 +268,5 @@ function pickDisplayName(config, metric, direction) {
     if (direction === 'discharge') return names.batteryDischarge || DEFAULT_DISPLAY_NAMES.BATTERY_DISCHARGE;
   }
   const key = metric.toLowerCase();
-  return names[key] || DEFAULT_DISPLAY_NAMES[metric] || `SolarEdge ${metric}`;
+  return names[key] || DEFAULT_DISPLAY_NAMES[metric] || metric;
 }
