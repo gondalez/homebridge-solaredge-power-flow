@@ -1,8 +1,11 @@
 import { sleep, AbortError } from '../util/retry.js';
+import { truncate } from '../util/logger.js';
 
 const DEFAULT_BASE_URL = 'https://monitoringapi.solaredge.com';
 const DEFAULT_BACKOFF_MS = [1000, 3000, 9000];
 const MAX_RETRIES = 3;
+const MAX_BODY_LOG_CHARS = 500;
+const BODY_KEYS_LOG_CHARS = 200;
 
 export class SolarEdgeError extends Error {
   constructor(message, { cause } = {}) {
@@ -43,9 +46,17 @@ export class NetworkError extends SolarEdgeError {
 }
 
 export class ParseError extends SolarEdgeError {
-  constructor(message, { cause } = {}) {
+  constructor(message, { cause, keys } = {}) {
     super(message, { cause });
     this.name = 'ParseError';
+    if (keys) this.keys = keys;
+  }
+}
+
+export class EmptyResponseError extends SolarEdgeError {
+  constructor(message, { cause } = {}) {
+    super(message, { cause });
+    this.name = 'EmptyResponseError';
   }
 }
 
@@ -80,11 +91,11 @@ export class SolarEdgeClient {
         return await this.attempt(url, signal);
       } catch (err) {
         lastError = err;
-        if (err instanceof AuthError || err instanceof ParseError || err instanceof RateLimitError) throw err;
         if (err instanceof AbortError) throw err;
+        if (!this._isRetryable(err)) throw err;
         if (attempt === this.maxRetries) break;
         const backoff = this.backoffMs[Math.min(attempt, this.backoffMs.length - 1)];
-        this.log.debug?.(`SolarEdgeClient retry ${attempt + 1}/${this.maxRetries} in ${backoff}ms after ${err.name}`);
+        this.log.debug?.(`SolarEdgeClient: retry ${attempt + 1}/${this.maxRetries} in ${backoff}ms after ${err.name}: ${err.message}`);
         try {
           await sleep(backoff, signal);
         } catch (sleepErr) {
@@ -96,6 +107,10 @@ export class SolarEdgeClient {
     throw lastError;
   }
 
+  _isRetryable(err) {
+    return err instanceof NetworkError || err instanceof ServerError;
+  }
+
   async attempt(url, signal) {
     let response;
     try {
@@ -105,9 +120,11 @@ export class SolarEdgeClient {
       throw new NetworkError(`Network error fetching ${url}: ${err.message}`, { cause: err });
     }
 
+    this.log.debug?.(`SolarEdgeClient: ${url} -> HTTP ${response.status}`);
+
     if (response.status === 401 || response.status === 403) {
       const body = await safeText(response);
-      throw new AuthError(`Authentication failed (${response.status}): ${body}`);
+      throw new AuthError(`Authentication failed (${response.status}): ${truncate(body, MAX_BODY_LOG_CHARS)}`);
     }
 
     if (response.status === 429) {
@@ -117,23 +134,45 @@ export class SolarEdgeClient {
 
     if (response.status >= 500) {
       const body = await safeText(response);
-      throw new ServerError(`Server error (${response.status}): ${body}`, { status: response.status });
+      throw new ServerError(
+        `Server error (${response.status}) from ${url}: ${truncate(body, MAX_BODY_LOG_CHARS)}`,
+        { status: response.status },
+      );
     }
 
     if (!response.ok) {
       const body = await safeText(response);
-      throw new SolarEdgeError(`Unexpected status (${response.status}): ${body}`);
+      throw new SolarEdgeError(
+        `Unexpected status (${response.status}) from ${url}: ${truncate(body, MAX_BODY_LOG_CHARS)}`,
+      );
     }
 
+    const body = await safeText(response);
     let json;
     try {
-      json = await response.json();
+      json = body ? JSON.parse(body) : null;
     } catch (err) {
-      throw new ParseError(`Failed to parse JSON response: ${err.message}`, { cause: err });
+      throw new ParseError(
+        `Failed to parse JSON response: ${err.message}. Body preview: ${truncate(body, MAX_BODY_LOG_CHARS)}`,
+        { cause: err },
+      );
+    }
+
+    if (json && typeof json === 'object' && Array.isArray(json.errors) && json.errors.length > 0) {
+      const messages = json.errors.map((e) => e?.message || JSON.stringify(e)).join('; ');
+      throw new SolarEdgeError(`SolarEdge API returned errors: ${truncate(messages, MAX_BODY_LOG_CHARS)}`);
+    }
+
+    if (json && typeof json === 'object' && 'siteCurrentPowerFlow' in json && json.siteCurrentPowerFlow == null) {
+      throw new EmptyResponseError('SolarEdge returned siteCurrentPowerFlow=null (site offline or no inverters reporting)');
     }
 
     if (!json || typeof json !== 'object' || !json.siteCurrentPowerFlow) {
-      throw new ParseError('Response missing required "siteCurrentPowerFlow" key');
+      const keys = json && typeof json === 'object' ? Object.keys(json) : [];
+      throw new ParseError(
+        `Response missing required "siteCurrentPowerFlow" key. Top-level keys: ${truncate(keys.join(',') || '(none)', BODY_KEYS_LOG_CHARS)}`,
+        { keys },
+      );
     }
 
     return json.siteCurrentPowerFlow;

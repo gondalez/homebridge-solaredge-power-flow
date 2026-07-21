@@ -1,4 +1,5 @@
 import { kwhToMwh, percentToMatter, wToMw } from '../solaredge/power-flow.js';
+import { formatError } from '../util/logger.js';
 
 const BATTERY_OK_MIN = 50;
 const BATTERY_WARNING_MIN = 20;
@@ -39,7 +40,7 @@ export function buildBatteryAccessory({ api, siteId, displayName, initial }) {
   };
 }
 
-export async function applyBatteryUpdate({ matter, accessory, chargeW, dischargeW, chargeLevel, critical }) {
+export async function applyBatteryUpdate({ log, matter, accessory, chargeW, dischargeW, chargeLevel, critical }) {
   const ctx = accessory.context;
 
   const activePower = dischargeW > 0 ? wToMw(dischargeW) : chargeW > 0 ? -wToMw(chargeW) : 0;
@@ -48,20 +49,26 @@ export async function applyBatteryUpdate({ matter, accessory, chargeW, discharge
   if (chargeW > 0) ctx.chargeKwh += (chargeW * deltaHours) / 1000;
   ctx.lastTs = Date.now();
 
-  await matter.updateAccessoryState(accessory.UUID, 'electricalPowerMeasurement', { activePower });
+  await safeUpdateState({ log, accessory }, () =>
+    matter.updateAccessoryState(accessory.UUID, 'electricalPowerMeasurement', { activePower }),
+  );
 
   const energy = {};
   if (ctx.chargeKwh > 0) energy.cumulativeEnergyImported = { energy: kwhToMwh(ctx.chargeKwh) };
   if (ctx.dischargeKwh > 0) energy.cumulativeEnergyExported = { energy: kwhToMwh(ctx.dischargeKwh) };
   if (Object.keys(energy).length > 0) {
-    await matter.updateAccessoryState(accessory.UUID, 'electricalEnergyMeasurement', energy);
+    await safeUpdateState({ log, accessory }, () =>
+      matter.updateAccessoryState(accessory.UUID, 'electricalEnergyMeasurement', energy),
+    );
   }
 
   if (chargeLevel != null) {
-    await matter.updateAccessoryState(accessory.UUID, 'powerSource', {
-      batPercentRemaining: percentToMatter(chargeLevel),
-      batChargeLevel: chargeLevelToMatter(chargeLevel, critical),
-    });
+    await safeUpdateState({ log, accessory }, () =>
+      matter.updateAccessoryState(accessory.UUID, 'powerSource', {
+        batPercentRemaining: percentToMatter(chargeLevel),
+        batChargeLevel: chargeLevelToMatter(chargeLevel, critical),
+      }),
+    );
   }
 }
 
@@ -69,4 +76,14 @@ function chargeLevelToMatter(level, critical) {
   if (critical || level <= BATTERY_WARNING_MIN) return MATTER_CRITICAL;
   if (level < BATTERY_OK_MIN) return MATTER_WARNING;
   return MATTER_OK;
+}
+
+async function safeUpdateState({ log, accessory }, fn) {
+  try {
+    await fn();
+  } catch (e) {
+    const detail = formatError(e);
+    if (log?.error) log.error(`SolarEdge: ${accessory.displayName} state update failed: ${detail}`);
+    else console.error(`SolarEdge: ${accessory.displayName} state update failed: ${detail}`);
+  }
 }

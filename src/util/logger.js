@@ -16,3 +16,18 @@ export function wrapLogger(log) {
     error: (...args) => log.error(...args),
   };
 }
+
+export function formatError(err) {
+  if (err == null) return 'unknown error';
+  if (typeof err === 'string') return err;
+  const head = `${err.name || 'Error'}: ${err.message || '(no message)'}`;
+  const cause = err.cause ? `\nCaused by: ${formatError(err.cause)}` : '';
+  const stack = err.stack ? `\n${err.stack}` : '';
+  return `${head}${cause}${stack}`;
+}
+
+export function truncate(text, max = 500) {
+  if (text == null) return '';
+  const s = typeof text === 'string' ? text : String(text);
+  return s.length > max ? `${s.slice(0, max)}…` : s;
+}

@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SolarEdgePowerFlowPlatform } from '../src/platform.js';
+import { AuthError, NetworkError, RateLimitError, SolarEdgeError } from '../src/solaredge/client.js';
 
 const silentLogger = {
   info: () => {},
@@ -101,5 +102,170 @@ describe('SolarEdgePowerFlowPlatform - accessory creation', () => {
     const a1 = await platform.ensureSwitchAccessory('PV', 'flow');
     const found = platform.findRegistered('PV', 'flow');
     expect(found).toBe(a1);
+  });
+});
+
+describe('SolarEdgePowerFlowPlatform - error handling', () => {
+  let api;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    api = makeApi();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('schedules the next poll after a successful poll', async () => {
+    const log = { ...silentLogger, info: vi.fn() };
+    const client = { getCurrentPowerFlow: vi.fn() };
+    const success = { unit: 'W', GRID: { status: 'Active', currentPower: 100 } };
+    client.getCurrentPowerFlow.mockResolvedValue(success);
+    new SolarEdgePowerFlowPlatform(log, { apiKey: 'K', siteId: 12345 }, api, { client });
+
+    api.fire('didFinishLaunching');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(client.getCurrentPowerFlow).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(900_000);
+    expect(client.getCurrentPowerFlow).toHaveBeenCalledTimes(2);
+  });
+
+  it('still schedules the next poll after a failed poll', async () => {
+    const log = { ...silentLogger, info: vi.fn(), error: vi.fn() };
+    const client = { getCurrentPowerFlow: vi.fn() };
+    let calls = 0;
+    client.getCurrentPowerFlow.mockImplementation(async () => {
+      calls++;
+      if (calls === 1) throw new NetworkError('boom');
+      return { unit: 'W', GRID: { status: 'Active', currentPower: 100 } };
+    });
+    new SolarEdgePowerFlowPlatform(log, { apiKey: 'K', siteId: 12345 }, api, { client });
+
+    api.fire('didFinishLaunching');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toBe(1);
+    await vi.advanceTimersByTimeAsync(900_000);
+    expect(calls).toBeGreaterThan(1);
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('network error'));
+  });
+
+  it('continues updating other accessories when one updateAccessoryState rejects', async () => {
+    const log = { ...silentLogger, info: vi.fn(), error: vi.fn() };
+    let call = 0;
+    const matter = {
+      uuid: { generate: (s) => `uuid-${s}` },
+      deviceTypes: { OnOffOutlet: 'OnOffPlugInUnit', ElectricalSensor: 'ElectricalSensor' },
+      clusterNames: { OnOff: 'onOff', PowerSource: 'powerSource' },
+      registerPlatformAccessories: vi.fn(async () => {}),
+      updateAccessoryState: vi.fn(async () => {
+        call++;
+        if (call === 1) throw new Error('matter controller disconnected');
+      }),
+      unregisterPlatformAccessories: vi.fn(async () => {}),
+    };
+    api.matter = matter;
+    const pf = {
+      unit: 'W',
+      GRID: { status: 'Active', currentPower: 100 },
+      LOAD: { status: 'Active', currentPower: 200 },
+      connections: [{ from: 'GRID', to: 'LOAD' }],
+    };
+    const client = { getCurrentPowerFlow: vi.fn(async () => pf) };
+    new SolarEdgePowerFlowPlatform(log, { apiKey: 'K', siteId: 12345 }, api, { client });
+
+    api.fire('didFinishLaunching');
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('state update failed'));
+    expect(matter.updateAccessoryState).toHaveBeenCalled();
+  });
+
+  it('logs a friendly AuthError message and stops polling', async () => {
+    const log = { ...silentLogger, info: vi.fn(), error: vi.fn() };
+    const client = { getCurrentPowerFlow: vi.fn(async () => { throw new AuthError('bad key'); }) };
+    new SolarEdgePowerFlowPlatform(log, { apiKey: 'K', siteId: 12345 }, api, { client });
+
+    api.fire('didFinishLaunching');
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('auth failed'));
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('siteId=12345'));
+    expect(client.getCurrentPowerFlow).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs a RateLimitError with the retry-after window', async () => {
+    const log = { ...silentLogger, info: vi.fn(), error: vi.fn() };
+    const client = { getCurrentPowerFlow: vi.fn(async () => { throw new RateLimitError('429', { retryAfterSeconds: 42 }); }) };
+    new SolarEdgePowerFlowPlatform(log, { apiKey: 'K', siteId: 12345 }, api, { client });
+
+    api.fire('didFinishLaunching');
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('rate limit'));
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('42s'));
+  });
+
+  it('logs a NetworkError with guidance', async () => {
+    const log = { ...silentLogger, info: vi.fn(), error: vi.fn() };
+    const client = { getCurrentPowerFlow: vi.fn(async () => { throw new NetworkError('econnrefused'); }) };
+    new SolarEdgePowerFlowPlatform(log, { apiKey: 'K', siteId: 12345 }, api, { client });
+
+    api.fire('didFinishLaunching');
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('network error'));
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('connectivity'));
+  });
+
+  it('logs the full error chain for unknown error types', async () => {
+    const log = { ...silentLogger, info: vi.fn(), error: vi.fn() };
+    const root = new Error('the real reason');
+    const wrapped = new SolarEdgeError('wrapper');
+    wrapped.cause = root;
+    const client = { getCurrentPowerFlow: vi.fn(async () => { throw wrapped; }) };
+    new SolarEdgePowerFlowPlatform(log, { apiKey: 'K', siteId: 12345 }, api, { client });
+
+    api.fire('didFinishLaunching');
+    await vi.advanceTimersByTimeAsync(0);
+
+    const messages = log.error.mock.calls.map((c) => String(c[0])).join('\n');
+    expect(messages).toContain('Caused by');
+    expect(messages).toContain('the real reason');
+  });
+
+  it('catches a synchronous throw from getCurrentPowerFlow without crashing the loop', async () => {
+    const log = { ...silentLogger, info: vi.fn(), error: vi.fn() };
+    let calls = 0;
+    const client = { getCurrentPowerFlow: vi.fn(() => {
+      calls++;
+      if (calls === 1) throw new Error('synchronous blow-up');
+      return Promise.resolve({ unit: 'W', GRID: { status: 'Active', currentPower: 1 } });
+    }) };
+    new SolarEdgePowerFlowPlatform(log, { apiKey: 'K', siteId: 12345 }, api, { client });
+
+    api.fire('didFinishLaunching');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toBe(1);
+    await vi.advanceTimersByTimeAsync(900_000);
+    expect(calls).toBeGreaterThan(1);
+  });
+
+  it('unregisters an accessory after two consecutive missing polls', async () => {
+    const log = { ...silentLogger, info: vi.fn(), error: vi.fn() };
+    const pf = { unit: 'W', GRID: { status: 'Active', currentPower: 100 } };
+    const client = { getCurrentPowerFlow: vi.fn(async () => pf) };
+    const platform = new SolarEdgePowerFlowPlatform(log, { apiKey: 'K', siteId: 12345 }, api, { client });
+
+    api.fire('didFinishLaunching');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(platform.accessories.size).toBe(1);
+
+    for (let i = 0; i < 2; i++) {
+      platform.bumpMissingPolls('GRID');
+    }
+
+    expect(platform.accessories.size).toBe(0);
+    expect(log.info).toHaveBeenCalledWith(expect.stringContaining('unregistering Grid'));
   });
 });

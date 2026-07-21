@@ -4,11 +4,13 @@ import { setupServer } from 'msw/node';
 
 import {
   AuthError,
+  EmptyResponseError,
   NetworkError,
   ParseError,
   RateLimitError,
   ServerError,
   SolarEdgeClient,
+  SolarEdgeError,
 } from '../src/solaredge/client.js';
 import { AbortError } from '../src/util/retry.js';
 
@@ -244,5 +246,58 @@ describe('SolarEdgeClient - constructor validation', () => {
   it('throws when siteId is missing on request', async () => {
     const client = new SolarEdgeClient(silentLogger, 'KEY');
     await expect(client.getCurrentPowerFlow()).rejects.toThrow(/siteId/);
+  });
+});
+
+describe('SolarEdgeClient - error envelopes', () => {
+  it('throws SolarEdgeError when API returns 200 with an errors array', async () => {
+    server.use(
+      http.get(CALL, () =>
+        HttpResponse.json({ errors: [{ message: 'site offline' }, { code: 2 }] }),
+      ),
+    );
+    const client = new SolarEdgeClient(silentLogger, 'KEY', { backoffMs: [10, 30, 90] });
+    const err = await client.getCurrentPowerFlow(12345).catch((e) => e);
+    expect(err).toBeInstanceOf(SolarEdgeError);
+    expect(err.message).toContain('site offline');
+  });
+
+  it('throws EmptyResponseError when siteCurrentPowerFlow is null (no retries)', async () => {
+    const handler = vi.fn(() => HttpResponse.json({ siteCurrentPowerFlow: null }));
+    server.use(http.get(CALL, handler));
+    const client = new SolarEdgeClient(silentLogger, 'KEY', { backoffMs: [10, 30, 90] });
+    const err = await client.getCurrentPowerFlow(12345).catch((e) => e);
+    expect(err).toBeInstanceOf(EmptyResponseError);
+    expect(err.message).toContain('site offline');
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it('ParseError includes the top-level keys actually returned', async () => {
+    server.use(http.get(CALL, () => HttpResponse.json({ foo: 'bar', baz: 1 })));
+    const client = new SolarEdgeClient(silentLogger, 'KEY', { backoffMs: [10, 30, 90] });
+    const err = await client.getCurrentPowerFlow(12345).catch((e) => e);
+    expect(err).toBeInstanceOf(ParseError);
+    expect(err.message).toContain('foo');
+    expect(err.message).toContain('baz');
+    expect(err.keys).toEqual(['foo', 'baz']);
+  });
+
+  it('ParseError includes a body preview when response is not JSON', async () => {
+    server.use(http.get(CALL, () => new HttpResponse('not json at all', { status: 200 })));
+    const client = new SolarEdgeClient(silentLogger, 'KEY', { backoffMs: [10, 30, 90] });
+    const err = await client.getCurrentPowerFlow(12345).catch((e) => e);
+    expect(err).toBeInstanceOf(ParseError);
+    expect(err.message).toContain('not json at all');
+  });
+
+  it('ServerError includes a truncated response body', async () => {
+    server.use(http.get(CALL, () => new HttpResponse('A'.repeat(2000), { status: 500 })));
+    const client = new SolarEdgeClient(silentLogger, 'KEY', { backoffMs: [10, 30, 90] });
+    const promise = client.getCurrentPowerFlow(12345).catch((e) => e);
+    await vi.advanceTimersByTimeAsync(500);
+    const err = await promise;
+    expect(err).toBeInstanceOf(ServerError);
+    expect(err.message.length).toBeLessThan(2000);
+    expect(err.message).toContain('AAAA');
   });
 });
