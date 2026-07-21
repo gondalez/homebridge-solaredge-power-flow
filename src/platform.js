@@ -24,7 +24,7 @@ export class SolarEdgePowerFlowPlatform {
     this.log = log;
     this.config = config || {};
     this.api = api;
-    this.accessories = new Map();
+    this.registeredAccessories = new Map();
     this.pollTimer = null;
     this.pollInFlight = false;
     this.lastTotals = {};
@@ -33,6 +33,14 @@ export class SolarEdgePowerFlowPlatform {
 
     api.on('didFinishLaunching', () => this.start());
     api.on('shutdown', () => this.stop());
+  }
+
+  configureAccessory(accessory) {
+    this.registeredAccessories.set(accessory.UUID, accessory);
+  }
+
+  accessories(callback) {
+    callback([...this.registeredAccessories.values()]);
   }
 
   start() {
@@ -230,7 +238,7 @@ export class SolarEdgePowerFlowPlatform {
   }
 
   bumpMissingPolls(specificMetric) {
-    for (const acc of this.accessories.values()) {
+    for (const acc of this.registeredAccessories.values()) {
       if (specificMetric && acc.context.metric !== specificMetric) continue;
       acc.context.consecutiveMissingPolls = (acc.context.consecutiveMissingPolls || 0) + 1;
       if (acc.context.consecutiveMissingPolls >= UNREGISTER_AFTER_MISSING_POLLS) {
@@ -244,7 +252,7 @@ export class SolarEdgePowerFlowPlatform {
       `SolarEdge: unregistering ${accessory.displayName} (UUID=${accessory.UUID}, ` +
         `key absent for ${UNREGISTER_AFTER_MISSING_POLLS} polls)`,
     );
-    this.accessories.delete(accessory.UUID);
+    this.registeredAccessories.delete(accessory.UUID);
     this.api.matter
       .unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory])
       .then(() => this.log.info(`SolarEdge: unregistered ${accessory.displayName}`))
@@ -273,7 +281,7 @@ export class SolarEdgePowerFlowPlatform {
     }
     try {
       await this.api.matter.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
-      this.accessories.set(accessory.UUID, accessory);
+      this.registeredAccessories.set(accessory.UUID, accessory);
       this.log.info(`SolarEdge: registered ${accessory.displayName} (UUID=${accessory.UUID})`);
       return accessory;
     } catch (e) {
@@ -305,7 +313,7 @@ export class SolarEdgePowerFlowPlatform {
     }
     try {
       await this.api.matter.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
-      this.accessories.set(accessory.UUID, accessory);
+      this.registeredAccessories.set(accessory.UUID, accessory);
       this.log.info(`SolarEdge: registered ${accessory.displayName} (UUID=${accessory.UUID})`);
       return accessory;
     } catch (e) {
@@ -315,7 +323,7 @@ export class SolarEdgePowerFlowPlatform {
   }
 
   findRegistered(metric, direction) {
-    for (const acc of this.accessories.values()) {
+    for (const acc of this.registeredAccessories.values()) {
       if (acc.context.metric === metric && acc.context.direction === direction) return acc;
     }
     return null;

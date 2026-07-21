@@ -259,13 +259,51 @@ describe('SolarEdgePowerFlowPlatform - error handling', () => {
 
     api.fire('didFinishLaunching');
     await vi.advanceTimersByTimeAsync(0);
-    expect(platform.accessories.size).toBe(1);
+    expect(platform.registeredAccessories.size).toBe(1);
 
     for (let i = 0; i < 2; i++) {
       platform.bumpMissingPolls('GRID');
     }
 
-    expect(platform.accessories.size).toBe(0);
+    expect(platform.registeredAccessories.size).toBe(0);
     expect(log.info).toHaveBeenCalledWith(expect.stringContaining('unregistering Grid'));
+  });
+});
+
+describe('SolarEdgePowerFlowPlatform - Homebridge Platform API', () => {
+  it('configureAccessory stores the cached accessory under its UUID and preserves context', () => {
+    const api = makeApi();
+    const platform = new SolarEdgePowerFlowPlatform(silentLogger, { apiKey: 'K', siteId: 12345 }, api);
+    const cached = {
+      UUID: 'uuid-cached',
+      displayName: 'Grid',
+      context: { metric: 'GRID', direction: 'flow', importedKwh: 12.5, exportedKwh: 3.25 },
+    };
+    platform.configureAccessory(cached);
+    expect(platform.registeredAccessories.get('uuid-cached')).toBe(cached);
+    expect(platform.registeredAccessories.get('uuid-cached').context.importedKwh).toBe(12.5);
+  });
+
+  it('accessories(callback) invokes the callback with an empty array when nothing is registered', () => {
+    const api = makeApi();
+    const platform = new SolarEdgePowerFlowPlatform(silentLogger, { apiKey: 'K', siteId: 12345 }, api);
+    const cb = vi.fn();
+    platform.accessories(cb);
+    expect(cb).toHaveBeenCalledTimes(1);
+    expect(cb).toHaveBeenCalledWith([]);
+  });
+
+  it('accessories(callback) returns the array of currently-registered accessories', async () => {
+    const api = makeApi();
+    const platform = new SolarEdgePowerFlowPlatform(silentLogger, { apiKey: 'K', siteId: 12345 }, api);
+    const grid = { UUID: 'uuid-grid', displayName: 'Grid', context: { metric: 'GRID', direction: 'flow' } };
+    const pv = { UUID: 'uuid-pv', displayName: 'PV', context: { metric: 'PV', direction: 'flow' } };
+    platform.configureAccessory(grid);
+    platform.configureAccessory(pv);
+    const cb = vi.fn();
+    platform.accessories(cb);
+    const result = cb.mock.calls[0][0];
+    expect(result).toHaveLength(2);
+    expect(result).toEqual(expect.arrayContaining([grid, pv]));
   });
 });
