@@ -22,11 +22,6 @@ export function wToMw(w) {
   return Math.round(w * 1000);
 }
 
-export function kwhToMwh(kwh) {
-  if (kwh == null || !Number.isFinite(kwh)) return 0;
-  return Math.round(kwh * 1_000_000);
-}
-
 export function percentToMatter(pct) {
   if (pct == null || !Number.isFinite(pct)) return null;
   return Math.max(0, Math.min(200, Math.round(pct * 2)));
@@ -118,38 +113,17 @@ export function resolveAll(pf, log) {
   };
 }
 
-export function buildAccessoryUpdates(resolved, previousTotals, now) {
+export function buildAccessoryUpdates(resolved) {
   const updates = {};
-  const totals = {};
   for (const metric of ['GRID', 'LOAD', 'PV', 'STORAGE']) {
     const r = resolved[metric];
     if (!r?.present) continue;
-    const prev = previousTotals?.[metric] || { importedKwh: 0, exportedKwh: 0, lastTs: now };
-    const deltaHours = Math.max(0, (now - prev.lastTs) / 3_600_000);
-    const { importedKwh, exportedKwh } = integrateEnergy(r, deltaHours);
-    const newImportedKwh = prev.importedKwh + importedKwh;
-    const newExportedKwh = prev.exportedKwh + exportedKwh;
     updates[metric] = {
       onOff: r.active,
       powerW: pickSignedWatts(r),
-      importedKwh: newImportedKwh,
-      exportedKwh: newExportedKwh,
     };
-    totals[metric] = { importedKwh: newImportedKwh, exportedKwh: newExportedKwh, lastTs: now };
   }
-  return { updates, totals };
-}
-
-function integrateEnergy(r, deltaHours) {
-  let importedKwh = 0;
-  let exportedKwh = 0;
-  const watts = pickSignedWatts(r);
-  const absWatts = Math.abs(watts);
-  if (absWatts === 0 || deltaHours === 0) return { importedKwh, exportedKwh };
-  const deltaKwh = (absWatts * deltaHours) / 1000;
-  if (watts > 0) importedKwh = deltaKwh;
-  else if (watts < 0) exportedKwh = deltaKwh;
-  return { importedKwh, exportedKwh };
+  return updates;
 }
 
 function pickSignedWatts(r) {

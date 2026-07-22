@@ -15,7 +15,7 @@ Up to six Matter accessories, depending on what your SolarEdge site reports:
 | Battery Discharge | `OnOffOutlet` | `STORAGE` key present |
 | Battery (state of charge) | `DimmableLight` | `STORAGE.chargeLevel` present |
 
-Each switch is **on when its `status` is `"Active"`** (or `"Charging"` / `"Discharging"` for the battery), **off otherwise**. Power flow direction is inferred from the API's `connections[]` array: importing from the grid is positive watts, exporting is negative; the battery's charge and discharge directions are reported on separate switches.
+Each switch is **on when its `status` is `"Active"`** (or `"Charging"` / `"Discharging"` for the battery), **off otherwise**. Power flow direction is inferred from the API's `connections[]` array: importing from the grid is positive watts, exporting is negative; the battery's charge and discharge directions are reported on separate switches. The Battery Charge and Battery Discharge switches report a positive kW value regardless of direction.
 
 The battery accessory is exposed to the iOS Home app as a `DimmableLight`: the fader position mirrors `STORAGE.chargeLevel` (0% = bottom, 100% = top). User changes to the fader are ignored — the next poll reverts the slider to the actual state of charge.
 
@@ -78,7 +78,7 @@ Restart Homebridge. The plugin will poll the SolarEdge API every 15 minutes and 
 - **Rate limiting (429)** — the plugin honours the `Retry-After` header and immediately fails the request (no retry storm against a rate-limited endpoint).
 - **Transient 5xx** — three retries with 1 s / 3 s / 9 s backoff before giving up for that cycle.
 - **Missing metric in API response** — the accessory is unregistered after two consecutive polls where its key is absent, so a brief inverter blip doesn't take down an accessory.
-- **Lifetime kWh** — accumulated in `accessory.context` and reported via `cumulativeEnergyImported` / `cumulativeEnergyExported` in milliwatt-hours. Totals survive Homebridge restarts.
+- **Storage direction switches** — Battery Charge and Battery Discharge switches are always registered as soon as `STORAGE` is present in the response. Only the active direction is `on`; the other is `off`, and the live kW is shown as a positive value on whichever switch is on. Live power is read from `electricalPowerMeasurement.activePower` (mW); no lifetime energy is tracked.
 - **Power units** — `currentPower` values are normalised to watts using the top-level `unit` field in the SolarEdge response (`W` / `kW` / `MW`). Unknown units log a one-time warning and are treated as watts.
 - **API request/response logging** — every HTTP attempt to the SolarEdge API logs a line at `info` level before the fetch (verb + URL) and another after the response (verb + URL + status + full body). The SolarEdge API key is included in the URL.
 

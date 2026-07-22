@@ -26,7 +26,6 @@ export class SolarEdgePowerFlowPlatform {
     this.registeredAccessories = new Map();
     this.pollTimer = null;
     this.pollInFlight = false;
-    this.lastTotals = {};
     this.matterAvailable = Boolean(api.matter);
 
     api.on('didFinishLaunching', () => this.start());
@@ -97,8 +96,7 @@ export class SolarEdgePowerFlowPlatform {
 
   async handleSuccess(pf) {
     const resolved = resolveAll(pf, this.log);
-    const { updates, totals } = buildAccessoryUpdates(resolved, this.lastTotals, Date.now());
-    this.lastTotals = { ...this.lastTotals, ...totals };
+    const updates = buildAccessoryUpdates(resolved);
 
     for (const [metric, u] of Object.entries(updates)) {
       await this.applyMetricUpdate(metric, u);
@@ -110,15 +108,29 @@ export class SolarEdgePowerFlowPlatform {
   async applyMetricUpdate(metric, update) {
     if (metric === 'STORAGE') {
       if (update.powerW > 0) {
-        await this.updateSwitchAccessory('STORAGE', 'discharge', { ...update, powerW: update.powerW });
+        await this.setStorageSwitch('discharge', true, update.powerW);
+        await this.setStorageSwitch('charge', false, 0);
       } else if (update.powerW < 0) {
-        await this.updateSwitchAccessory('STORAGE', 'charge', { ...update, powerW: update.powerW });
+        await this.setStorageSwitch('charge', true, -update.powerW);
+        await this.setStorageSwitch('discharge', false, 0);
       } else {
-        await this.markBothStorageSwitchesOff();
+        await this.setStorageSwitch('charge', false, 0);
+        await this.setStorageSwitch('discharge', false, 0);
       }
       return;
     }
     await this.updateSwitchAccessory(metric, 'flow', update);
+  }
+
+  async setStorageSwitch(direction, onOff, powerW) {
+    const accessory = await this.ensureSwitchAccessory('STORAGE', direction);
+    if (!accessory) return;
+    accessory.context.consecutiveMissingPolls = 0;
+    await applySwitchUpdate({
+      accessory,
+      update: { onOff, powerW },
+      matter: this.api.matter,
+    });
   }
 
   async updateSwitchAccessory(metric, direction, update) {
@@ -126,25 +138,10 @@ export class SolarEdgePowerFlowPlatform {
     if (!accessory) return;
     accessory.context.consecutiveMissingPolls = 0;
     await applySwitchUpdate({
-      api: this.api,
       accessory,
-      update: {
-        onOff: update.onOff,
-        powerW: update.powerW,
-        importedKwh: update.importedKwh,
-        exportedKwh: update.exportedKwh,
-      },
+      update: { onOff: update.onOff, powerW: update.powerW },
       matter: this.api.matter,
     });
-  }
-
-  async markBothStorageSwitchesOff() {
-    for (const direction of ['charge', 'discharge']) {
-      const accessory = this.findRegistered('STORAGE', direction);
-      if (!accessory) continue;
-      accessory.context.consecutiveMissingPolls = 0;
-      await this.api.matter.updateAccessoryState(accessory.UUID, 'onOff', { onOff: false });
-    }
   }
 
   async applyBatteryUpdate(storage) {
@@ -195,14 +192,12 @@ export class SolarEdgePowerFlowPlatform {
     if (existing) return existing;
 
     const displayName = pickDisplayName(this.config, metric, direction);
-    const initial = this.lastTotals[metric];
     const accessory = buildSwitchAccessory({
       api: this.api,
       siteId: this.config.siteId,
       metric,
       direction,
       displayName,
-      initial,
     });
     try {
       await this.api.matter.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);

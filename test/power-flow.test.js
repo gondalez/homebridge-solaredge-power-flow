@@ -6,7 +6,6 @@ import { dirname, resolve } from 'node:path';
 import {
   ACTIVE_STATUS,
   IDLE_STATUS,
-  kwhToMwh,
   matterToPercent,
   normalizeToWatts,
   percentToMatter,
@@ -70,15 +69,6 @@ describe('wToMw', () => {
   });
   it('returns 0 for NaN', () => {
     expect(wToMw(NaN)).toBe(0);
-  });
-});
-
-describe('kwhToMwh', () => {
-  it('converts 1.5 kWh to 1_500_000 mWh', () => {
-    expect(kwhToMwh(1.5)).toBe(1_500_000);
-  });
-  it('returns 0 for null', () => {
-    expect(kwhToMwh(null)).toBe(0);
   });
 });
 
@@ -259,81 +249,44 @@ describe('resolveAll', () => {
 });
 
 describe('buildAccessoryUpdates', () => {
-  it('integrates positive watts into importedKwh over the interval', () => {
+  it('returns { onOff, powerW } only (no energy fields)', () => {
     const pf = loadFixture('power-flow-grid-import.json');
     const resolved = resolveAll(pf);
-    const now = Date.now();
-    const intervalMs = 15 * 60 * 1000;
-    const previousTotals = {
-      GRID: { importedKwh: 0, exportedKwh: 0, lastTs: now - intervalMs },
-      LOAD: { importedKwh: 0, exportedKwh: 0, lastTs: now - intervalMs },
-      PV: { importedKwh: 0, exportedKwh: 0, lastTs: now - intervalMs },
-    };
-    const { updates, totals } = buildAccessoryUpdates(resolved, previousTotals, now, intervalMs);
-    expect(updates.GRID.onOff).toBe(true);
-    expect(updates.GRID.powerW).toBe(500);
-    expect(updates.GRID.importedKwh).toBeCloseTo(0.125, 5);
-    expect(totals.GRID.importedKwh).toBeCloseTo(0.125, 5);
-    expect(totals.GRID.lastTs).toBe(now);
+    const updates = buildAccessoryUpdates(resolved);
+    expect(updates.GRID).toBeDefined();
+    expect(Object.keys(updates.GRID).sort()).toEqual(['onOff', 'powerW']);
+    expect(updates.GRID.importedKwh).toBeUndefined();
+    expect(updates.GRID.exportedKwh).toBeUndefined();
   });
 
-  it('integrates negative watts (export) into exportedKwh', () => {
-    const pf = loadFixture('power-flow-grid-export.json');
+  it('emits a negative powerW for STORAGE when the battery is charging', () => {
+    const pf = loadFixture('power-flow-storage-charging.json');
     const resolved = resolveAll(pf);
-    const now = Date.now();
-    const intervalMs = 15 * 60 * 1000;
-    const previousTotals = {
-      GRID: { importedKwh: 0, exportedKwh: 0, lastTs: now - intervalMs },
-    };
-    const { updates } = buildAccessoryUpdates(resolved, previousTotals, now, intervalMs);
-    expect(updates.GRID.powerW).toBe(-500);
-    expect(updates.GRID.exportedKwh).toBeCloseTo(0.125, 5);
-    expect(updates.GRID.importedKwh).toBe(0);
+    const updates = buildAccessoryUpdates(resolved);
+    expect(updates.STORAGE.powerW).toBeLessThan(0);
+  });
+
+  it('emits a positive powerW for STORAGE when the battery is discharging', () => {
+    const pf = loadFixture('power-flow-storage-discharging.json');
+    const resolved = resolveAll(pf);
+    const updates = buildAccessoryUpdates(resolved);
+    expect(updates.STORAGE.powerW).toBeGreaterThan(0);
   });
 
   it('omits metrics that are not present', () => {
     const pf = loadFixture('power-flow-pv-only.json');
     const resolved = resolveAll(pf);
-    const now = Date.now();
-    const intervalMs = 15 * 60 * 1000;
-    const { updates } = buildAccessoryUpdates(resolved, {}, now, intervalMs);
+    const updates = buildAccessoryUpdates(resolved);
     expect(updates.STORAGE).toBeUndefined();
     expect(updates.PV).toBeDefined();
   });
 
-  it('integrates correctly when the response unit is kW', () => {
-    const pf = {
-      unit: 'kW',
-      GRID: { status: 'Active', currentPower: 3.4 },
-      connections: [{ from: 'GRID', to: 'Load' }],
-    };
-    const resolved = resolveAll(pf);
-    const now = Date.now();
-    const intervalMs = 60 * 60 * 1000;
-    const previousTotals = {
-      GRID: { importedKwh: 0, exportedKwh: 0, lastTs: now - intervalMs },
-    };
-    const { updates } = buildAccessoryUpdates(resolved, previousTotals, now);
-    expect(updates.GRID.powerW).toBe(3400);
-    expect(updates.GRID.importedKwh).toBeCloseTo(3.4, 5);
-  });
-
-  it('scales kW fixture values to watts through the full resolve+update pipeline', () => {
+  it('scales kW fixture values to watts in powerW', () => {
     const pf = loadFixture('power-flow-kw-unit.json');
     const resolved = resolveAll(pf);
-    expect(resolved.GRID.power).toBe(500);
-    expect(resolved.LOAD.power).toBe(2000);
-    expect(resolved.PV.power).toBe(1500);
-
-    const now = Date.now();
-    const intervalMs = 60 * 60 * 1000;
-    const previousTotals = {
-      GRID: { importedKwh: 0, exportedKwh: 0, lastTs: now - intervalMs },
-      LOAD: { importedKwh: 0, exportedKwh: 0, lastTs: now - intervalMs },
-      PV: { importedKwh: 0, exportedKwh: 0, lastTs: now - intervalMs },
-    };
-    const { updates } = buildAccessoryUpdates(resolved, previousTotals, now);
+    const updates = buildAccessoryUpdates(resolved);
     expect(updates.GRID.powerW).toBe(500);
-    expect(updates.GRID.importedKwh).toBeCloseTo(0.5, 5);
+    expect(updates.LOAD.powerW).toBe(2000);
+    expect(updates.PV.powerW).toBe(1500);
   });
 });
