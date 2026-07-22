@@ -97,6 +97,8 @@ export class SolarEdgeClient {
   }
 
   async attempt(url, signal) {
+    this.log.info?.(`SolarEdge API: GET ${url}`);
+
     let response;
     try {
       response = await this.fetch(url, { signal });
@@ -105,8 +107,10 @@ export class SolarEdgeClient {
       throw new NetworkError(`Network error fetching ${url}: ${err.message}`, { cause: err });
     }
 
+    const body = await safeText(response);
+    this.log.info?.(`SolarEdge API: GET ${url} -> ${response.status} ${body}`);
+
     if (response.status === 401 || response.status === 403) {
-      const body = await safeText(response);
       throw new AuthError(`Authentication failed (${response.status}): ${body}`);
     }
 
@@ -116,18 +120,16 @@ export class SolarEdgeClient {
     }
 
     if (response.status >= 500) {
-      const body = await safeText(response);
       throw new ServerError(`Server error (${response.status}): ${body}`, { status: response.status });
     }
 
     if (!response.ok) {
-      const body = await safeText(response);
       throw new SolarEdgeError(`Unexpected status (${response.status}): ${body}`);
     }
 
     let json;
     try {
-      json = await response.json();
+      json = JSON.parse(body);
     } catch (err) {
       throw new ParseError(`Failed to parse JSON response: ${err.message}`, { cause: err });
     }

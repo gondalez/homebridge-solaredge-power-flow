@@ -246,3 +246,91 @@ describe('SolarEdgeClient - constructor validation', () => {
     await expect(client.getCurrentPowerFlow()).rejects.toThrow(/siteId/);
   });
 });
+
+describe('SolarEdgeClient - HTTP logging', () => {
+  function logger() {
+    return {
+      ...silentLogger,
+      info: vi.fn(),
+    };
+  }
+
+  it('logs the URL (with api_key) before each fetch', async () => {
+    server.use(http.get(CALL, () => HttpResponse.json(SUCCESS_BODY)));
+    const log = logger();
+    const client = new SolarEdgeClient(log, 'KEY', { backoffMs: [10, 30, 90] });
+    await client.getCurrentPowerFlow(12345);
+    const requestLog = log.info.mock.calls.map((c) => String(c[0])).find((m) => m.startsWith('SolarEdge API: GET'));
+    expect(requestLog).toBeDefined();
+    expect(requestLog).toContain('GET');
+    expect(requestLog).toContain('api_key=KEY');
+    expect(requestLog).toContain('site/12345/currentPowerFlow');
+  });
+
+  it('logs the status and full body after a 2xx success response', async () => {
+    server.use(http.get(CALL, () => HttpResponse.json(SUCCESS_BODY)));
+    const log = logger();
+    const client = new SolarEdgeClient(log, 'KEY', { backoffMs: [10, 30, 90] });
+    await client.getCurrentPowerFlow(12345);
+    const responseLog = log.info.mock.calls
+      .map((c) => String(c[0]))
+      .find((m) => m.includes('->'));
+    expect(responseLog).toBeDefined();
+    expect(responseLog).toContain('200');
+    expect(responseLog).toContain('siteCurrentPowerFlow');
+  });
+
+  it('logs the status and body for a 500 error response', async () => {
+    server.use(http.get(CALL, () => new HttpResponse('boom', { status: 500 })));
+    const log = logger();
+    const client = new SolarEdgeClient(log, 'KEY', { backoffMs: [10, 30, 90] });
+    const promise = client.getCurrentPowerFlow(12345).catch((e) => e);
+    await vi.advanceTimersByTimeAsync(500);
+    await promise;
+    const responseLogs = log.info.mock.calls
+      .map((c) => String(c[0]))
+      .filter((m) => m.includes('->'));
+    expect(responseLogs.length).toBe(4);
+    expect(responseLogs[0]).toContain('500');
+    expect(responseLogs[0]).toContain('boom');
+  });
+
+  it('emits only the pre-call log when the network itself errors', async () => {
+    server.use(
+      http.get(CALL, () => {
+        return HttpResponse.error();
+      }),
+    );
+    const log = logger();
+    const client = new SolarEdgeClient(log, 'KEY', { backoffMs: [10, 30, 90] });
+    const promise = client.getCurrentPowerFlow(12345).catch((e) => e);
+    await vi.advanceTimersByTimeAsync(500);
+    await promise;
+    const messages = log.info.mock.calls.map((c) => String(c[0]));
+    expect(messages.some((m) => m.startsWith('SolarEdge API: GET'))).toBe(true);
+    expect(messages.some((m) => m.includes('->'))).toBe(false);
+  });
+
+  it('emits two request/response pairs when a 500 retries into a 200', async () => {
+    let count = 0;
+    server.use(
+      http.get(CALL, () => {
+        count++;
+        if (count === 1) return new HttpResponse('boom', { status: 500 });
+        return HttpResponse.json(SUCCESS_BODY);
+      }),
+    );
+    const log = logger();
+    const client = new SolarEdgeClient(log, 'KEY', { backoffMs: [10, 30, 90] });
+    const promise = client.getCurrentPowerFlow(12345);
+    await vi.advanceTimersByTimeAsync(500);
+    await promise;
+    const messages = log.info.mock.calls.map((c) => String(c[0]));
+    const requestLogs = messages.filter((m) => m.startsWith('SolarEdge API: GET') && !m.includes('->'));
+    const responseLogs = messages.filter((m) => m.includes('->'));
+    expect(requestLogs).toHaveLength(2);
+    expect(responseLogs).toHaveLength(2);
+    expect(responseLogs[0]).toContain('500');
+    expect(responseLogs[1]).toContain('200');
+  });
+});
