@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Reverted needless logging and error handling changes.
 
+### Fixed
+- Power readings being reported 1000× too small when the SolarEdge API returns a `kW` or `MW` unit. The plugin now normalises `currentPower` to watts using the top-level `unit` field before reporting to Matter and before integrating lifetime energy.
+
 ## [0.0.3] - 2026-07-21
 
 Fixed Homebridge Platform API: child-bridge no longer crashes at start.

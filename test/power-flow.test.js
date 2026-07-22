@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -8,6 +8,7 @@ import {
   IDLE_STATUS,
   kwhToMwh,
   matterToPercent,
+  normalizeToWatts,
   percentToMatter,
   resolveAll,
   resolveGrid,
@@ -26,6 +27,36 @@ function loadFixture(name) {
   const raw = readFileSync(resolve(FIXTURE_DIR, name), 'utf8');
   return JSON.parse(raw).siteCurrentPowerFlow;
 }
+
+describe('normalizeToWatts', () => {
+  it('converts 3.4 kW to 3400 W', () => {
+    expect(normalizeToWatts(3.4, 'kW')).toBe(3400);
+  });
+
+  it('converts 0.005 MW to 5000 W', () => {
+    expect(normalizeToWatts(0.005, 'MW')).toBe(5000);
+  });
+
+  it('passes watts through unchanged', () => {
+    expect(normalizeToWatts(100, 'W')).toBe(100);
+  });
+
+  it('defaults to W when unit is missing', () => {
+    expect(normalizeToWatts(3.4, undefined)).toBe(3.4);
+  });
+
+  it('falls back to W for unknown units', () => {
+    expect(normalizeToWatts(3.4, 'GW')).toBe(3.4);
+  });
+
+  it('returns 0 for null', () => {
+    expect(normalizeToWatts(null, 'kW')).toBe(0);
+  });
+
+  it('returns 0 for NaN', () => {
+    expect(normalizeToWatts(NaN, 'W')).toBe(0);
+  });
+});
 
 describe('wToMw', () => {
   it('converts 0.5 W to 500 mW', () => {
@@ -110,6 +141,22 @@ describe('resolveGrid', () => {
     expect(r.present).toBe(true);
     expect(r.active).toBe(false);
     expect(r.rawStatus).toBe('Inactive');
+  });
+
+  it('scales currentPower from kW to watts', () => {
+    const r = resolveGrid(
+      { unit: 'kW', GRID: { status: 'Active', currentPower: 3.4 }, connections: [{ from: 'GRID', to: 'Load' }] },
+      'kW',
+    );
+    expect(r.power).toBe(3400);
+  });
+
+  it('scales currentPower from MW to watts', () => {
+    const r = resolveGrid(
+      { unit: 'MW', GRID: { status: 'Active', currentPower: 0.005 }, connections: [{ from: 'GRID', to: 'Load' }] },
+      'MW',
+    );
+    expect(r.power).toBe(5000);
   });
 });
 
@@ -197,6 +244,18 @@ describe('resolveAll', () => {
     expect(Object.keys(r).sort()).toEqual(['GRID', 'LOAD', 'PV', 'STORAGE']);
     expect(r.STORAGE.chargeLevel).toBe(75);
   });
+
+  it('logs a warning and assumes W when the response carries an unknown unit', () => {
+    const log = { warn: vi.fn() };
+    const pf = {
+      unit: 'GW',
+      GRID: { status: 'Active', currentPower: 3.4 },
+      connections: [{ from: 'GRID', to: 'Load' }],
+    };
+    const r = resolveAll(pf, log);
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('GW'));
+    expect(r.GRID.power).toBe(3.4);
+  });
 });
 
 describe('buildAccessoryUpdates', () => {
@@ -240,5 +299,41 @@ describe('buildAccessoryUpdates', () => {
     const { updates } = buildAccessoryUpdates(resolved, {}, now, intervalMs);
     expect(updates.STORAGE).toBeUndefined();
     expect(updates.PV).toBeDefined();
+  });
+
+  it('integrates correctly when the response unit is kW', () => {
+    const pf = {
+      unit: 'kW',
+      GRID: { status: 'Active', currentPower: 3.4 },
+      connections: [{ from: 'GRID', to: 'Load' }],
+    };
+    const resolved = resolveAll(pf);
+    const now = Date.now();
+    const intervalMs = 60 * 60 * 1000;
+    const previousTotals = {
+      GRID: { importedKwh: 0, exportedKwh: 0, lastTs: now - intervalMs },
+    };
+    const { updates } = buildAccessoryUpdates(resolved, previousTotals, now);
+    expect(updates.GRID.powerW).toBe(3400);
+    expect(updates.GRID.importedKwh).toBeCloseTo(3.4, 5);
+  });
+
+  it('scales kW fixture values to watts through the full resolve+update pipeline', () => {
+    const pf = loadFixture('power-flow-kw-unit.json');
+    const resolved = resolveAll(pf);
+    expect(resolved.GRID.power).toBe(500);
+    expect(resolved.LOAD.power).toBe(2000);
+    expect(resolved.PV.power).toBe(1500);
+
+    const now = Date.now();
+    const intervalMs = 60 * 60 * 1000;
+    const previousTotals = {
+      GRID: { importedKwh: 0, exportedKwh: 0, lastTs: now - intervalMs },
+      LOAD: { importedKwh: 0, exportedKwh: 0, lastTs: now - intervalMs },
+      PV: { importedKwh: 0, exportedKwh: 0, lastTs: now - intervalMs },
+    };
+    const { updates } = buildAccessoryUpdates(resolved, previousTotals, now);
+    expect(updates.GRID.powerW).toBe(500);
+    expect(updates.GRID.importedKwh).toBeCloseTo(0.5, 5);
   });
 });

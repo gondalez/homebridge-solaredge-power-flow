@@ -96,7 +96,7 @@ export class SolarEdgePowerFlowPlatform {
   }
 
   async handleSuccess(pf) {
-    const resolved = resolveAll(pf);
+    const resolved = resolveAll(pf, this.log);
     const { updates, totals } = buildAccessoryUpdates(resolved, this.lastTotals, Date.now());
     this.lastTotals = { ...this.lastTotals, ...totals };
 

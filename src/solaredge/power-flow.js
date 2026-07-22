@@ -8,6 +8,15 @@ export const VOLTAGE_MV_DEFAULT = 230_000;
 export const ACTIVE = 'Active';
 export const INACTIVE = 'Inactive';
 
+const UNIT_TO_WATTS = { W: 1, kW: 1_000, MW: 1_000_000 };
+const _warnedUnknownUnits = new Set();
+
+export function normalizeToWatts(value, unit) {
+  if (value == null || !Number.isFinite(value)) return 0;
+  const scale = UNIT_TO_WATTS[unit] ?? 1;
+  return value * scale;
+}
+
 export function wToMw(w) {
   if (w == null || !Number.isFinite(w)) return 0;
   return Math.round(w * 1000);
@@ -28,10 +37,10 @@ export function matterToPercent(m) {
   return Math.max(0, Math.min(100, m / 2));
 }
 
-export function resolveGrid(pf) {
+export function resolveGrid(pf, pfUnit = 'W') {
   const unit = pf?.GRID;
   if (!unit) return absent('GRID');
-  const power = numOrZero(unit.currentPower);
+  const power = normalizeToWatts(unit.currentPower, pfUnit);
   const isImporting = connectionsFrom(pf, 'GRID');
   return {
     present: true,
@@ -41,10 +50,10 @@ export function resolveGrid(pf) {
   };
 }
 
-export function resolveLoad(pf) {
+export function resolveLoad(pf, pfUnit = 'W') {
   const unit = pf?.LOAD;
   if (!unit) return absent('LOAD');
-  const power = numOrZero(unit.currentPower);
+  const power = normalizeToWatts(unit.currentPower, pfUnit);
   return {
     present: true,
     active: unit.status === ACTIVE_STATUS,
@@ -53,10 +62,10 @@ export function resolveLoad(pf) {
   };
 }
 
-export function resolvePV(pf) {
+export function resolvePV(pf, pfUnit = 'W') {
   const unit = pf?.PV;
   if (!unit) return absent('PV');
-  const power = numOrZero(unit.currentPower);
+  const power = normalizeToWatts(unit.currentPower, pfUnit);
   return {
     present: true,
     active: unit.status === ACTIVE_STATUS,
@@ -65,7 +74,7 @@ export function resolvePV(pf) {
   };
 }
 
-export function resolveStorage(pf) {
+export function resolveStorage(pf, pfUnit = 'W') {
   const unit = pf?.STORAGE;
   if (!unit) {
     return {
@@ -76,7 +85,7 @@ export function resolveStorage(pf) {
       critical: false,
     };
   }
-  const power = numOrZero(unit.currentPower);
+  const power = normalizeToWatts(unit.currentPower, pfUnit);
   const isCharging = connectionsTo(pf, 'STORAGE');
   const isDischarging = connectionsFrom(pf, 'STORAGE');
   const charge = isCharging ? power : 0;
@@ -95,12 +104,17 @@ export function resolveStorage(pf) {
   };
 }
 
-export function resolveAll(pf) {
+export function resolveAll(pf, log) {
+  const pfUnit = pf?.unit || 'W';
+  if (log && !UNIT_TO_WATTS[pfUnit] && !_warnedUnknownUnits.has(pfUnit)) {
+    _warnedUnknownUnits.add(pfUnit);
+    log.warn?.(`SolarEdge: unknown unit "${pfUnit}" in power-flow response; assuming W`);
+  }
   return {
-    GRID: resolveGrid(pf),
-    LOAD: resolveLoad(pf),
-    PV: resolvePV(pf),
-    STORAGE: resolveStorage(pf),
+    GRID: resolveGrid(pf, pfUnit),
+    LOAD: resolveLoad(pf, pfUnit),
+    PV: resolvePV(pf, pfUnit),
+    STORAGE: resolveStorage(pf, pfUnit),
   };
 }
 
@@ -159,9 +173,4 @@ function connectionsFrom(pf, node) {
 
 function connectionsTo(pf, node) {
   return (pf?.connections || []).some((c) => c && c.to === node);
-}
-
-function numOrZero(v) {
-  if (v == null || !Number.isFinite(v)) return 0;
-  return v;
 }

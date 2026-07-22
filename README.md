@@ -79,6 +79,7 @@ Restart Homebridge. The plugin will poll the SolarEdge API every 15 minutes and 
 - **Transient 5xx** — three retries with 1 s / 3 s / 9 s backoff before giving up for that cycle.
 - **Missing metric in API response** — the accessory is unregistered after two consecutive polls where its key is absent, so a brief inverter blip doesn't take down an accessory.
 - **Lifetime kWh** — accumulated in `accessory.context` and reported via `cumulativeEnergyImported` / `cumulativeEnergyExported` in milliwatt-hours. Totals survive Homebridge restarts.
+- **Power units** — `currentPower` values are normalised to watts using the top-level `unit` field in the SolarEdge response (`W` / `kW` / `MW`). Unknown units log a one-time warning and are treated as watts.
 
 ## Development
 
