@@ -1,5 +1,4 @@
 import { kwhToMwh, wToMw, VOLTAGE_MV_DEFAULT } from '../solaredge/power-flow.js';
-import { formatError } from '../util/logger.js';
 
 export function buildSwitchAccessory({ api, siteId, metric, displayName, direction, initial }) {
   return {
@@ -39,21 +38,16 @@ function logNoop(api, displayName, action) {
   api.log.debug?.(`[${displayName}] ignored ${action} (read-only SolarEdge mirror)`);
 }
 
-export async function applySwitchUpdate({ accessory, update, matter, log }) {
+export async function applySwitchUpdate({ accessory, update, matter }) {
   const ctx = accessory.context;
   ctx.importedKwh = update.importedKwh;
   ctx.exportedKwh = update.exportedKwh;
   ctx.lastTs = Date.now();
 
-  await safeUpdateState({ log, accessory }, () =>
-    matter.updateAccessoryState(accessory.UUID, 'onOff', { onOff: update.onOff }),
-  );
-
-  await safeUpdateState({ log, accessory }, () =>
-    matter.updateAccessoryState(accessory.UUID, 'electricalPowerMeasurement', {
-      activePower: wToMw(Math.abs(update.powerW)),
-    }),
-  );
+  await matter.updateAccessoryState(accessory.UUID, 'onOff', { onOff: update.onOff });
+  await matter.updateAccessoryState(accessory.UUID, 'electricalPowerMeasurement', {
+    activePower: wToMw(Math.abs(update.powerW)),
+  });
 
   const energyUpdates = {};
   if (update.importedKwh > 0) {
@@ -63,18 +57,6 @@ export async function applySwitchUpdate({ accessory, update, matter, log }) {
     energyUpdates.cumulativeEnergyExported = { energy: kwhToMwh(update.exportedKwh) };
   }
   if (Object.keys(energyUpdates).length > 0) {
-    await safeUpdateState({ log, accessory }, () =>
-      matter.updateAccessoryState(accessory.UUID, 'electricalEnergyMeasurement', energyUpdates),
-    );
-  }
-}
-
-async function safeUpdateState({ log, accessory }, fn) {
-  try {
-    await fn();
-  } catch (e) {
-    const detail = formatError(e);
-    if (log?.error) log.error(`SolarEdge: ${accessory.displayName} state update failed: ${detail}`);
-    else console.error(`SolarEdge: ${accessory.displayName} state update failed: ${detail}`);
+    await matter.updateAccessoryState(accessory.UUID, 'electricalEnergyMeasurement', energyUpdates);
   }
 }

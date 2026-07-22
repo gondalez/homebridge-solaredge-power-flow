@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Reverted needless logging and error handling changes.
+
 ## [0.0.3] - 2026-07-21
 
 Fixed Homebridge Platform API: child-bridge no longer crashes at start.
