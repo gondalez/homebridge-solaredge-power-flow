@@ -158,11 +158,7 @@ export class SolarEdgePowerFlowPlatform {
     await applyBatteryUpdate({
       matter: this.api.matter,
       accessory,
-      chargeW: storage.charge,
-      dischargeW: storage.discharge,
       chargeLevel: storage.chargeLevel,
-      critical: storage.critical,
-      onOff: storage.active,
     });
   }
 
@@ -223,16 +219,10 @@ export class SolarEdgePowerFlowPlatform {
     const existing = this.findRegistered('BATTERY', 'sensor');
     if (existing) return existing;
     const displayName = this.config.accessoryNames?.battery || DEFAULT_DISPLAY_NAMES.BATTERY;
-    const initial = this.lastTotals.STORAGE || {};
     const accessory = buildBatteryAccessory({
       api: this.api,
       siteId: this.config.siteId,
       displayName,
-      initial: {
-        chargeKwh: initial.importedKwh ?? 0,
-        dischargeKwh: initial.exportedKwh ?? 0,
-        lastTs: initial.lastTs ?? Date.now(),
-      },
     });
     try {
       await this.api.matter.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);

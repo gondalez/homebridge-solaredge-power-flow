@@ -12,8 +12,8 @@ function makeApi() {
   const events = {};
   const matter = {
     uuid: { generate: (s) => `uuid-${s}` },
-    deviceTypes: { OnOffOutlet: 'OnOffPlugInUnit', ElectricalSensor: 'ElectricalSensor' },
-    clusterNames: { OnOff: 'onOff', PowerSource: 'powerSource' },
+    deviceTypes: { OnOffOutlet: 'OnOffPlugInUnit', DimmableLight: 'DimmableLight' },
+    clusterNames: { OnOff: 'onOff', LevelControl: 'levelControl' },
     registerPlatformAccessories: vi.fn(async () => {}),
     updateAccessoryState: vi.fn(async () => {}),
     unregisterPlatformAccessories: vi.fn(async () => {}),
@@ -81,13 +81,20 @@ describe('SolarEdgePowerFlowPlatform - accessory creation', () => {
     expect(accessory.clusters.electricalEnergyMeasurement).toBeDefined();
   });
 
-  it('createBattery returns an ElectricalSensor with powerSource cluster', async () => {
+  it('createBattery returns a DimmableLight fader with onOff + levelControl clusters', async () => {
     const accessory = await platform.ensureBatteryAccessory();
     expect(accessory).toBeDefined();
-    expect(accessory.deviceType).toBe('ElectricalSensor');
+    expect(accessory.deviceType).toBe('DimmableLight');
     expect(accessory.context.metric).toBe('BATTERY');
-    expect(accessory.clusters.powerSource).toBeDefined();
-    expect(accessory.clusters.electricalPowerMeasurement.powerMode).toBe(1);
+    expect(accessory.clusters.onOff.onOff).toBe(true);
+    expect(accessory.clusters.levelControl.currentLevel).toBe(0);
+    expect(accessory.clusters.levelControl.minLevel).toBe(0);
+    expect(accessory.clusters.levelControl.maxLevel).toBe(254);
+    expect(accessory.clusters.powerSource).toBeUndefined();
+    expect(accessory.clusters.electricalPowerMeasurement).toBeUndefined();
+    expect(accessory.clusters.electricalEnergyMeasurement).toBeUndefined();
+    expect(accessory.handlers.onOff).toBeDefined();
+    expect(accessory.handlers.levelControl).toBeDefined();
   });
 
   it('reuses a registered accessory on a second ensureSwitchAccessory call', async () => {

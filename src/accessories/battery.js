@@ -1,72 +1,52 @@
-import { kwhToMwh, percentToMatter, wToMw } from '../solaredge/power-flow.js';
+const MIN_MATTER_LEVEL = 0;
+const MAX_MATTER_LEVEL = 254;
 
-const BATTERY_OK_MIN = 50;
-const BATTERY_WARNING_MIN = 20;
-const MATTER_OK = 0;
-const MATTER_WARNING = 1;
-const MATTER_CRITICAL = 2;
+export function chargeLevelToMatterLevel(chargeLevel) {
+  if (chargeLevel == null || !Number.isFinite(chargeLevel)) return 0;
+  const clamped = Math.max(0, Math.min(100, chargeLevel));
+  return Math.round((clamped / 100) * MAX_MATTER_LEVEL);
+}
 
-export function buildBatteryAccessory({ api, siteId, displayName, initial }) {
+export function buildBatteryAccessory({ api, siteId, displayName }) {
   return {
     UUID: api.matter.uuid.generate(`solaredge-${siteId}-battery`),
     displayName,
     serialNumber: `SE-${siteId}-BATTERY`,
     manufacturer: 'SolarEdge',
-    model: 'Power Flow Battery',
+    model: 'Power Flow Battery Level',
     firmwareRevision: '1.0.0',
     context: {
       metric: 'BATTERY',
       direction: 'sensor',
-      chargeKwh: initial?.chargeKwh ?? 0,
-      dischargeKwh: initial?.dischargeKwh ?? 0,
-      lastTs: initial?.lastTs ?? Date.now(),
       consecutiveMissingPolls: 0,
     },
-    deviceType: api.matter.deviceTypes.ElectricalSensor,
+    deviceType: api.matter.deviceTypes.DimmableLight,
     clusters: {
-      electricalPowerMeasurement: {
-        activePower: 0,
-        powerMode: 1,
+      onOff: { onOff: true },
+      levelControl: { currentLevel: 0, minLevel: MIN_MATTER_LEVEL, maxLevel: MAX_MATTER_LEVEL },
+    },
+    handlers: {
+      onOff: {
+        on: () => logNoop(api, displayName, 'on'),
+        off: () => logNoop(api, displayName, 'off'),
+        toggle: () => logNoop(api, displayName, 'toggle'),
       },
-      electricalEnergyMeasurement: {},
-      powerSource: {
-        batPresent: true,
-        status: 1,
-        batPercentRemaining: null,
-        batChargeLevel: MATTER_OK,
+      levelControl: {
+        moveToLevel: (args) => logNoop(api, displayName, `level ${args?.level}`),
+        move: (args) => logNoop(api, displayName, `move ${args?.moveMode}`),
+        step: (args) => logNoop(api, displayName, `step ${args?.stepMode}`),
+        stop: () => logNoop(api, displayName, 'stop'),
+        moveToLevelWithOnOff: (args) => logNoop(api, displayName, `level+onoff ${args?.level}`),
       },
     },
   };
 }
 
-export async function applyBatteryUpdate({ matter, accessory, chargeW, dischargeW, chargeLevel, critical }) {
-  const ctx = accessory.context;
-
-  const activePower = dischargeW > 0 ? wToMw(dischargeW) : chargeW > 0 ? -wToMw(chargeW) : 0;
-  const deltaHours = Math.max(0, (Date.now() - ctx.lastTs) / 3_600_000);
-  if (dischargeW > 0) ctx.dischargeKwh += (dischargeW * deltaHours) / 1000;
-  if (chargeW > 0) ctx.chargeKwh += (chargeW * deltaHours) / 1000;
-  ctx.lastTs = Date.now();
-
-  await matter.updateAccessoryState(accessory.UUID, 'electricalPowerMeasurement', { activePower });
-
-  const energy = {};
-  if (ctx.chargeKwh > 0) energy.cumulativeEnergyImported = { energy: kwhToMwh(ctx.chargeKwh) };
-  if (ctx.dischargeKwh > 0) energy.cumulativeEnergyExported = { energy: kwhToMwh(ctx.dischargeKwh) };
-  if (Object.keys(energy).length > 0) {
-    await matter.updateAccessoryState(accessory.UUID, 'electricalEnergyMeasurement', energy);
-  }
-
-  if (chargeLevel != null) {
-    await matter.updateAccessoryState(accessory.UUID, 'powerSource', {
-      batPercentRemaining: percentToMatter(chargeLevel),
-      batChargeLevel: chargeLevelToMatter(chargeLevel, critical),
-    });
-  }
+export async function applyBatteryUpdate({ matter, accessory, chargeLevel }) {
+  const currentLevel = chargeLevelToMatterLevel(chargeLevel);
+  await matter.updateAccessoryState(accessory.UUID, 'levelControl', { currentLevel });
 }
 
-function chargeLevelToMatter(level, critical) {
-  if (critical || level <= BATTERY_WARNING_MIN) return MATTER_CRITICAL;
-  if (level < BATTERY_OK_MIN) return MATTER_WARNING;
-  return MATTER_OK;
+function logNoop(api, displayName, action) {
+  api.log.debug?.(`[${displayName}] ignored ${action} (read-only SolarEdge mirror)`);
 }

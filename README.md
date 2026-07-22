@@ -1,6 +1,6 @@
 # @gondalez/homebridge-solaredge-power-flow
 
-A [Homebridge](https://homebridge.io) plugin that exposes your [SolarEdge](https://www.solaredge.com) site power flow as Matter switches and a battery accessory — surfaced in the iOS 27+ Home app energy view.
+A [Homebridge](https://homebridge.io) plugin that exposes your [SolarEdge](https://www.solaredge.com) site power flow as Matter switches and a battery level fader — surfaced in the iOS 27+ Home app energy view.
 
 ## What you get
 
@@ -13,11 +13,11 @@ Up to six Matter accessories, depending on what your SolarEdge site reports:
 | PV | `OnOffOutlet` | `PV` key present |
 | Battery Charge | `OnOffOutlet` | `STORAGE` key present |
 | Battery Discharge | `OnOffOutlet` | `STORAGE` key present |
-| Battery (state of charge) | `ElectricalSensor` | `STORAGE.chargeLevel` present |
+| Battery (state of charge) | `DimmableLight` | `STORAGE.chargeLevel` present |
 
 Each switch is **on when its `status` is `"Active"`** (or `"Charging"` / `"Discharging"` for the battery), **off otherwise**. Power flow direction is inferred from the API's `connections[]` array: importing from the grid is positive watts, exporting is negative; the battery's charge and discharge directions are reported on separate switches.
 
-The battery accessory exposes the current state of charge via the Matter `powerSource` cluster (`batPercentRemaining`) and the lifetime energy in/out via `electricalEnergyMeasurement` (`cumulativeEnergyImported` / `cumulativeEnergyExported`).
+The battery accessory is exposed to the iOS Home app as a `DimmableLight`: the fader position mirrors `STORAGE.chargeLevel` (0% = bottom, 100% = top). User changes to the fader are ignored — the next poll reverts the slider to the actual state of charge.
 
 ## Requirements
 

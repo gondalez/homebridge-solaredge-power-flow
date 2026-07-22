@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Reverted needless logging and error handling changes.
+- Replaced the battery `ElectricalSensor` accessory with a `DimmableLight` so the iOS Home app surfaces the battery state of charge as a fader. Lifetime kWh and active power reporting for the battery are dropped (the per-switch Battery Charge / Battery Discharge switches are unchanged).
 
 ### Fixed
 - Power readings being reported 1000× too small when the SolarEdge API returns a `kW` or `MW` unit. The plugin now normalises `currentPower` to watts using the top-level `unit` field before reporting to Matter and before integrating lifetime energy.
