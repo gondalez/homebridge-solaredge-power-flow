@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.5] - 2026-07-22
+
+### Added
+- Log the resolved power object from each of `resolveGrid` / `resolveLoad` / `resolvePV` / `resolveStorage`, and the milliwatt value written to the Matter `electricalPowerMeasurement` cluster, to make power-flow display issues debuggable from the Homebridge log.
+
+### Changed
+- `buildAccessoryUpdates` now converts the resolved watts to milliwatts once and emits `powerMW` (instead of `powerW`). `applySwitchUpdate` no longer imports `wToMw` and writes `powerMW` directly, removing the redundant W → mW step that used to live in the accessory.
+
 ## [0.0.4] - 2026-07-22
 
 ### Added

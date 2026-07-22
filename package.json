@@ -1,7 +1,7 @@
 {
   "name": "@gondalez/homebridge-solaredge-power-flow",
   "displayName": "SolarEdge Power Flow",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Expose SolarEdge site power-flow data as Matter switches and a battery accessory.",
   "license": "Apache-2.0",
   "keywords": [
