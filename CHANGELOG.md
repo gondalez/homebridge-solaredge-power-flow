@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.4] - 2026-07-22
+
 ### Added
 - Log solaredge API request and response for debugging.
 
@@ -16,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dropped lifetime kWh / MWh energy tracking from all Matter switches. Live power (W/kW) and on/off state are unchanged. The STORAGE charge and discharge switches are now both always registered when the `STORAGE` key is present; only the active direction is on, the other is off, and the live power is shown as a positive value.
 
 ### Fixed
-- Power readings being reported 1000× too small when the SolarEdge API returns a `kW` or `MW` unit. The plugin now normalises `currentPower` to watts using the top-level `unit` field before reporting to Matter and before integrating lifetime energy.
+- Power readings being reported 1000× too small when the SolarEdge API returns a `kW` or `MW` unit. The plugin now normalises `currentPower` to watts using the top-level `unit` field before reporting to Matter.
 
 ## [0.0.3] - 2026-07-21
 
