@@ -1,4 +1,4 @@
-import { wToMw, VOLTAGE_MV_DEFAULT } from '../solaredge/power-flow.js';
+import { VOLTAGE_MV_DEFAULT } from '../solaredge/power-flow.js';
 
 export function buildSwitchAccessory({ api, siteId, metric, displayName, direction }) {
   return {
@@ -35,9 +35,11 @@ function logNoop(api, displayName, action) {
   api.log.debug?.(`[${displayName}] ignored ${action} (read-only SolarEdge mirror)`);
 }
 
-export async function applySwitchUpdate({ accessory, update, matter }) {
+export async function applySwitchUpdate({ accessory, update, matter, log }) {
   await matter.updateAccessoryState(accessory.UUID, 'onOff', { onOff: update.onOff });
+  const activePower = Math.abs(update.powerMW);
+  log?.info?.(`[${accessory.displayName}] activePower: ${activePower} mW (${activePower / 1000} W)`);
   await matter.updateAccessoryState(accessory.UUID, 'electricalPowerMeasurement', {
-    activePower: wToMw(Math.abs(update.powerW)),
+    activePower,
   });
 }

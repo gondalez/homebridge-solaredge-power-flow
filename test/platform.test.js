@@ -166,7 +166,7 @@ describe('SolarEdgePowerFlowPlatform - STORAGE charge/discharge exclusivity', ()
     const log = { ...silentLogger, info: vi.fn() };
     const api = makeApi();
     const platform = new SolarEdgePowerFlowPlatform(log, { apiKey: 'K', siteId: 12345 }, api);
-    await platform.applyMetricUpdate('STORAGE', { onOff: false, powerW: 0 });
+    await platform.applyMetricUpdate('STORAGE', { onOff: false, powerMW: 0 });
     expect(platform.findRegistered('STORAGE', 'charge')).toBeDefined();
     expect(platform.findRegistered('STORAGE', 'discharge')).toBeDefined();
   });
@@ -175,7 +175,7 @@ describe('SolarEdgePowerFlowPlatform - STORAGE charge/discharge exclusivity', ()
     const log = { ...silentLogger, info: vi.fn() };
     const api = makeApi();
     const platform = new SolarEdgePowerFlowPlatform(log, { apiKey: 'K', siteId: 12345 }, api);
-    await platform.applyMetricUpdate('STORAGE', { onOff: true, powerW: -2500 });
+    await platform.applyMetricUpdate('STORAGE', { onOff: true, powerMW: -2_500_000 });
 
     const charge = platform.findRegistered('STORAGE', 'charge');
     const discharge = platform.findRegistered('STORAGE', 'discharge');
@@ -190,7 +190,7 @@ describe('SolarEdgePowerFlowPlatform - STORAGE charge/discharge exclusivity', ()
     const log = { ...silentLogger, info: vi.fn() };
     const api = makeApi();
     const platform = new SolarEdgePowerFlowPlatform(log, { apiKey: 'K', siteId: 12345 }, api);
-    await platform.applyMetricUpdate('STORAGE', { onOff: true, powerW: 1800 });
+    await platform.applyMetricUpdate('STORAGE', { onOff: true, powerMW: 1_800_000 });
 
     const charge = platform.findRegistered('STORAGE', 'charge');
     const discharge = platform.findRegistered('STORAGE', 'discharge');
@@ -205,7 +205,7 @@ describe('SolarEdgePowerFlowPlatform - STORAGE charge/discharge exclusivity', ()
     const log = { ...silentLogger, info: vi.fn() };
     const api = makeApi();
     const platform = new SolarEdgePowerFlowPlatform(log, { apiKey: 'K', siteId: 12345 }, api);
-    await platform.applyMetricUpdate('STORAGE', { onOff: false, powerW: 0 });
+    await platform.applyMetricUpdate('STORAGE', { onOff: false, powerMW: 0 });
 
     const charge = platform.findRegistered('STORAGE', 'charge');
     const discharge = platform.findRegistered('STORAGE', 'discharge');
@@ -221,8 +221,8 @@ describe('SolarEdgePowerFlowPlatform - STORAGE charge/discharge exclusivity', ()
     const api = makeApi();
     const platform = new SolarEdgePowerFlowPlatform(log, { apiKey: 'K', siteId: 12345 }, api);
 
-    await platform.applyMetricUpdate('STORAGE', { onOff: true, powerW: -2500 });
-    await platform.applyMetricUpdate('STORAGE', { onOff: true, powerW: 1800 });
+    await platform.applyMetricUpdate('STORAGE', { onOff: true, powerMW: -2_500_000 });
+    await platform.applyMetricUpdate('STORAGE', { onOff: true, powerMW: 1_800_000 });
 
     const charge = platform.findRegistered('STORAGE', 'charge');
     const discharge = platform.findRegistered('STORAGE', 'discharge');
@@ -239,14 +239,14 @@ describe('SolarEdgePowerFlowPlatform - STORAGE charge/discharge exclusivity', ()
     const api = makeApi();
     const platform = new SolarEdgePowerFlowPlatform(log, { apiKey: 'K', siteId: 12345 }, api);
 
-    await platform.applyMetricUpdate('STORAGE', { onOff: true, powerW: -2500 });
+    await platform.applyMetricUpdate('STORAGE', { onOff: true, powerMW: -2_500_000 });
     const charge = platform.findRegistered('STORAGE', 'charge');
     const chargePower = findStateForUuid(api.matter, charge.UUID, 'electricalPowerMeasurement');
     expect(chargePower[chargePower.length - 1].activePower).toBe(2_500_000);
     expect(chargePower[chargePower.length - 1].activePower).toBeGreaterThan(0);
 
     api.matter.updateAccessoryState.mockClear();
-    await platform.applyMetricUpdate('STORAGE', { onOff: true, powerW: 1800 });
+    await platform.applyMetricUpdate('STORAGE', { onOff: true, powerMW: 1_800_000 });
     const discharge = platform.findRegistered('STORAGE', 'discharge');
     const dischargePower = findStateForUuid(api.matter, discharge.UUID, 'electricalPowerMeasurement');
     expect(dischargePower[dischargePower.length - 1].activePower).toBe(1_800_000);

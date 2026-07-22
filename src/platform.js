@@ -107,11 +107,11 @@ export class SolarEdgePowerFlowPlatform {
 
   async applyMetricUpdate(metric, update) {
     if (metric === 'STORAGE') {
-      if (update.powerW > 0) {
-        await this.setStorageSwitch('discharge', true, update.powerW);
+      if (update.powerMW > 0) {
+        await this.setStorageSwitch('discharge', true, update.powerMW);
         await this.setStorageSwitch('charge', false, 0);
-      } else if (update.powerW < 0) {
-        await this.setStorageSwitch('charge', true, -update.powerW);
+      } else if (update.powerMW < 0) {
+        await this.setStorageSwitch('charge', true, -update.powerMW);
         await this.setStorageSwitch('discharge', false, 0);
       } else {
         await this.setStorageSwitch('charge', false, 0);
@@ -122,14 +122,15 @@ export class SolarEdgePowerFlowPlatform {
     await this.updateSwitchAccessory(metric, 'flow', update);
   }
 
-  async setStorageSwitch(direction, onOff, powerW) {
+  async setStorageSwitch(direction, onOff, powerMW) {
     const accessory = await this.ensureSwitchAccessory('STORAGE', direction);
     if (!accessory) return;
     accessory.context.consecutiveMissingPolls = 0;
     await applySwitchUpdate({
       accessory,
-      update: { onOff, powerW },
+      update: { onOff, powerMW },
       matter: this.api.matter,
+      log: this.log,
     });
   }
 
@@ -139,8 +140,9 @@ export class SolarEdgePowerFlowPlatform {
     accessory.context.consecutiveMissingPolls = 0;
     await applySwitchUpdate({
       accessory,
-      update: { onOff: update.onOff, powerW: update.powerW },
+      update: { onOff: update.onOff, powerMW: update.powerMW },
       matter: this.api.matter,
+      log: this.log,
     });
   }
 

@@ -249,28 +249,28 @@ describe('resolveAll', () => {
 });
 
 describe('buildAccessoryUpdates', () => {
-  it('returns { onOff, powerW } only (no energy fields)', () => {
+  it('returns { onOff, powerMW } only (no energy fields)', () => {
     const pf = loadFixture('power-flow-grid-import.json');
     const resolved = resolveAll(pf);
     const updates = buildAccessoryUpdates(resolved);
     expect(updates.GRID).toBeDefined();
-    expect(Object.keys(updates.GRID).sort()).toEqual(['onOff', 'powerW']);
+    expect(Object.keys(updates.GRID).sort()).toEqual(['onOff', 'powerMW']);
     expect(updates.GRID.importedKwh).toBeUndefined();
     expect(updates.GRID.exportedKwh).toBeUndefined();
   });
 
-  it('emits a negative powerW for STORAGE when the battery is charging', () => {
+  it('emits a negative powerMW for STORAGE when the battery is charging', () => {
     const pf = loadFixture('power-flow-storage-charging.json');
     const resolved = resolveAll(pf);
     const updates = buildAccessoryUpdates(resolved);
-    expect(updates.STORAGE.powerW).toBeLessThan(0);
+    expect(updates.STORAGE.powerMW).toBeLessThan(0);
   });
 
-  it('emits a positive powerW for STORAGE when the battery is discharging', () => {
+  it('emits a positive powerMW for STORAGE when the battery is discharging', () => {
     const pf = loadFixture('power-flow-storage-discharging.json');
     const resolved = resolveAll(pf);
     const updates = buildAccessoryUpdates(resolved);
-    expect(updates.STORAGE.powerW).toBeGreaterThan(0);
+    expect(updates.STORAGE.powerMW).toBeGreaterThan(0);
   });
 
   it('omits metrics that are not present', () => {
@@ -281,12 +281,12 @@ describe('buildAccessoryUpdates', () => {
     expect(updates.PV).toBeDefined();
   });
 
-  it('scales kW fixture values to watts in powerW', () => {
+  it('scales kW fixture values to milliwatts in powerMW', () => {
     const pf = loadFixture('power-flow-kw-unit.json');
     const resolved = resolveAll(pf);
     const updates = buildAccessoryUpdates(resolved);
-    expect(updates.GRID.powerW).toBe(500);
-    expect(updates.LOAD.powerW).toBe(2000);
-    expect(updates.PV.powerW).toBe(1500);
+    expect(updates.GRID.powerMW).toBe(500_000);
+    expect(updates.LOAD.powerMW).toBe(2_000_000);
+    expect(updates.PV.powerMW).toBe(1_500_000);
   });
 });

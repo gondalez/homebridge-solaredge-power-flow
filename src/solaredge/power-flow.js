@@ -32,60 +32,68 @@ export function matterToPercent(m) {
   return Math.max(0, Math.min(100, m / 2));
 }
 
-export function resolveGrid(pf, pfUnit = 'W') {
+export function resolveGrid(pf, pfUnit = 'W', log = null) {
   const unit = pf?.GRID;
   if (!unit) return absent('GRID');
   const power = normalizeToWatts(unit.currentPower, pfUnit);
   const isImporting = connectionsFrom(pf, 'GRID');
-  return {
+  const result = {
     present: true,
     active: unit.status === ACTIVE_STATUS,
     rawStatus: unit.status || INACTIVE,
     power: isImporting ? power : -power,
   };
+  log?.info?.(`[GRID] resolved: ${JSON.stringify(result)}`);
+  return result;
 }
 
-export function resolveLoad(pf, pfUnit = 'W') {
+export function resolveLoad(pf, pfUnit = 'W', log = null) {
   const unit = pf?.LOAD;
   if (!unit) return absent('LOAD');
   const power = normalizeToWatts(unit.currentPower, pfUnit);
-  return {
+  const result = {
     present: true,
     active: unit.status === ACTIVE_STATUS,
     rawStatus: unit.status || INACTIVE,
     power,
   };
+  log?.info?.(`[LOAD] resolved: ${JSON.stringify(result)}`);
+  return result;
 }
 
-export function resolvePV(pf, pfUnit = 'W') {
+export function resolvePV(pf, pfUnit = 'W', log = null) {
   const unit = pf?.PV;
   if (!unit) return absent('PV');
   const power = normalizeToWatts(unit.currentPower, pfUnit);
-  return {
+  const result = {
     present: true,
     active: unit.status === ACTIVE_STATUS,
     rawStatus: unit.status || INACTIVE,
     power,
   };
+  log?.info?.(`[PV] resolved: ${JSON.stringify(result)}`);
+  return result;
 }
 
-export function resolveStorage(pf, pfUnit = 'W') {
+export function resolveStorage(pf, pfUnit = 'W', log = null) {
   const unit = pf?.STORAGE;
   if (!unit) {
-    return {
+    const result = {
       ...absent('STORAGE'),
       charge: 0,
       discharge: 0,
       chargeLevel: null,
       critical: false,
     };
+    log?.info?.(`[STORAGE] resolved: ${JSON.stringify(result)}`);
+    return result;
   }
   const power = normalizeToWatts(unit.currentPower, pfUnit);
   const isCharging = connectionsTo(pf, 'STORAGE');
   const isDischarging = connectionsFrom(pf, 'STORAGE');
   const charge = isCharging ? power : 0;
   const discharge = isDischarging ? power : 0;
-  return {
+  const result = {
     present: true,
     active:
       unit.status === ACTIVE_STATUS ||
@@ -97,6 +105,8 @@ export function resolveStorage(pf, pfUnit = 'W') {
     chargeLevel: Number.isFinite(unit.chargeLevel) ? unit.chargeLevel : null,
     critical: Boolean(unit.critical),
   };
+  log?.info?.(`[STORAGE] resolved: ${JSON.stringify(result)}`);
+  return result;
 }
 
 export function resolveAll(pf, log) {
@@ -106,10 +116,10 @@ export function resolveAll(pf, log) {
     log.warn?.(`SolarEdge: unknown unit "${pfUnit}" in power-flow response; assuming W`);
   }
   return {
-    GRID: resolveGrid(pf, pfUnit),
-    LOAD: resolveLoad(pf, pfUnit),
-    PV: resolvePV(pf, pfUnit),
-    STORAGE: resolveStorage(pf, pfUnit),
+    GRID: resolveGrid(pf, pfUnit, log),
+    LOAD: resolveLoad(pf, pfUnit, log),
+    PV: resolvePV(pf, pfUnit, log),
+    STORAGE: resolveStorage(pf, pfUnit, log),
   };
 }
 
@@ -120,7 +130,7 @@ export function buildAccessoryUpdates(resolved) {
     if (!r?.present) continue;
     updates[metric] = {
       onOff: r.active,
-      powerW: pickSignedWatts(r),
+      powerMW: wToMw(pickSignedWatts(r)),
     };
   }
   return updates;
